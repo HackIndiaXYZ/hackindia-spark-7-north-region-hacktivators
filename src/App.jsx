@@ -11,15 +11,15 @@ import { schemesData } from './data/SchemesData';
 const AuthView = ({ onComplete }) => {
   const [step, setStep] = useState(1);
   const [isLogin, setIsLogin] = useState(false);
-  const [formData, setFormData] = useState({ age: '', income: '', category: '', state: '', password: '' });
+  const [formData, setFormData] = useState({ age: '', income: '', category: '', caste: '', state: '', password: '' });
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (isLogin) {
       // Simulate quick login
-      const savedProfile = JSON.parse(localStorage.getItem('saarthiProfile'));
-      if (savedProfile) {
-        onComplete(savedProfile);
+      const savedAccount = JSON.parse(localStorage.getItem('saarthiAccount'));
+      if (savedAccount) {
+        onComplete(savedAccount);
       } else {
         alert("No saved profile found. Please create an account.");
         setIsLogin(false);
@@ -30,7 +30,7 @@ const AuthView = ({ onComplete }) => {
     if (step < 3) {
       setStep(step + 1);
     } else {
-      localStorage.setItem('saarthiProfile', JSON.stringify(formData));
+      localStorage.setItem('saarthiAccount', JSON.stringify(formData));
       onComplete(formData);
     }
   };
@@ -125,12 +125,25 @@ const AuthView = ({ onComplete }) => {
                   <input type="number" className="auth-input" placeholder="e.g. 22" required value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} />
                 </div>
                 <div className="auth-form-group">
-                  <label>Category</label>
+                  <label>Profession / Role</label>
                   <select className="auth-input" required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
-                    <option value="">Select Category</option>
+                    <option value="">Select Role</option>
                     <option value="student">Student</option>
                     <option value="farmer">Farmer</option>
+                    <option value="health">Health</option>
                     <option value="women">Women</option>
+                    <option value="business">Business</option>
+                  </select>
+                </div>
+                <div className="auth-form-group">
+                  <label>Caste Category</label>
+                  <select className="auth-input" required value={formData.caste} onChange={e => setFormData({...formData, caste: e.target.value})}>
+                    <option value="">Select Caste</option>
+                    <option value="General">General</option>
+                    <option value="OBC">OBC</option>
+                    <option value="SC">SC</option>
+                    <option value="ST">ST</option>
+                    <option value="EWS">EWS</option>
                   </select>
                 </div>
                 <div className="auth-form-group full">
@@ -146,7 +159,7 @@ const AuthView = ({ onComplete }) => {
                 <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <p><strong>Age:</strong> {formData.age}</p>
                   <p><strong>Income:</strong> ₹{formData.income}</p>
-                  <p><strong>Category:</strong> {formData.category}</p>
+                  <p><strong>Role:</strong> {formData.category} | <strong>Caste:</strong> {formData.caste}</p>
                   <p><strong>State:</strong> {formData.state}</p>
                 </div>
               </div>
@@ -165,14 +178,27 @@ const AuthView = ({ onComplete }) => {
 // ==========================================
 // VIEW 2: HOME (Light Red Theme)
 // ==========================================
-const HomeView = ({ userProfile, onViewDetails, onOpenChat, onLogout, onSearch }) => {
+const HomeView = ({ userProfile, onViewDetails, onOpenChat, onLogout, onLogin, onSearch }) => {
   const [formData, setFormData] = useState({ 
     category: userProfile?.category || '', 
+    caste: userProfile?.caste || '',
     age: userProfile?.age || '', 
     income: userProfile?.income || '', 
     state: userProfile?.state || '' 
   });
   
+  React.useEffect(() => {
+    if (userProfile) {
+      setFormData({
+        category: userProfile.category || '', 
+        caste: userProfile.caste || '',
+        age: userProfile.age || '', 
+        income: userProfile.income || '', 
+        state: userProfile.state || '' 
+      });
+    }
+  }, [userProfile]);
+
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     onSearch(formData);
@@ -186,7 +212,23 @@ const HomeView = ({ userProfile, onViewDetails, onOpenChat, onLogout, onSearch }
     const matchAge = age >= s.eligibility.minAge && age <= s.eligibility.maxAge;
     const matchIncome = income <= s.eligibility.maxIncome;
     const matchCategory = userProfile.category ? s.category === userProfile.category : true;
-    return matchAge && matchIncome && matchCategory;
+    
+    // Caste Filtering Logic
+    const userCaste = userProfile.caste || '';
+    let matchCaste = true;
+    if (userCaste) {
+      const text = (s.title + " " + s.description).toLowerCase();
+      const isSCSTScheme = text.includes(' sc ') || text.includes(' st ') || text.includes('scheduled caste') || text.includes('tribal') || text.includes('dalit');
+      const isMinorityScheme = text.includes('minority') || text.includes('obc') || text.includes('backward class');
+      
+      if (userCaste === 'General') {
+        if (isSCSTScheme || isMinorityScheme) matchCaste = false;
+      } else if (userCaste === 'OBC') {
+        if (isSCSTScheme) matchCaste = false;
+      }
+    }
+    
+    return matchAge && matchIncome && matchCategory && matchCaste;
   });
 
   const displaySchemes = filteredSchemes.slice(0, 6);
@@ -207,14 +249,14 @@ const HomeView = ({ userProfile, onViewDetails, onOpenChat, onLogout, onSearch }
             <a href="#" className="active">Home</a>
             <a href="#schemes">Schemes</a>
             <a href="#how-it-works">How It Works</a>
-            <a onClick={onLogout} style={{ cursor: 'pointer', color: '#dc2626' }}>Logout</a>
           </nav>
           
           <div className="header-actions">
-            <button className="btn btn-outline">English</button>
-            <button className="btn btn-primary" onClick={onOpenChat}>
-              <MessageSquare size={18}/> Ask AI Assistant
-            </button>
+            {!userProfile ? (
+              <button className="btn btn-primary" onClick={onLogin}>Log In / Sign Up</button>
+            ) : (
+              <button className="btn btn-outline" onClick={onLogout} style={{ color: '#dc2626', borderColor: '#fca5a5' }}>Logout</button>
+            )}
           </div>
         </div>
       </header>
@@ -242,26 +284,30 @@ const HomeView = ({ userProfile, onViewDetails, onOpenChat, onLogout, onSearch }
           
           <form className="inline-form" onSubmit={handleSearchSubmit}>
             <div className="input-box">
-              <select required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
-                <option value="" disabled>Select Category</option>
+              <select required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} style={{width: '120px'}}>
+                <option value="" disabled>Profession</option>
                 <option value="student">Student</option>
                 <option value="farmer">Farmer</option>
                 <option value="health">Health</option>
                 <option value="women">Women</option>
+                <option value="business">Business</option>
               </select>
             </div>
             <div className="input-box">
-              <input type="number" required placeholder="Your Age" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} />
-            </div>
-            <div className="input-box">
-              <input type="number" required placeholder="Annual Income" value={formData.income} onChange={e => setFormData({...formData, income: e.target.value})} />
-            </div>
-            <div className="input-box">
-              <select required value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})}>
-                <option value="" disabled>Your State</option>
-                <option value="Delhi">Delhi</option>
-                <option value="Maharashtra">Maharashtra</option>
+              <select required value={formData.caste} onChange={e => setFormData({...formData, caste: e.target.value})} style={{width: '100px'}}>
+                <option value="" disabled>Caste</option>
+                <option value="General">General</option>
+                <option value="OBC">OBC</option>
+                <option value="SC">SC</option>
+                <option value="ST">ST</option>
+                <option value="EWS">EWS</option>
               </select>
+            </div>
+            <div className="input-box">
+              <input type="number" required placeholder="Age" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} style={{width: '70px'}} />
+            </div>
+            <div className="input-box">
+              <input type="number" required placeholder="Income" value={formData.income} onChange={e => setFormData({...formData, income: e.target.value})} style={{width: '100px'}} />
             </div>
             <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
               Find My Schemes →
@@ -302,7 +348,6 @@ const HomeView = ({ userProfile, onViewDetails, onOpenChat, onLogout, onSearch }
         <div className="container">
           <div className="schemes-header">
             <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Top Recommendations</h2>
-            <a href="#" className="view-all">View All Schemes →</a>
           </div>
           
           <div className="schemes-grid">
@@ -687,7 +732,23 @@ const SearchResultsView = ({ searchParams, onViewDetails, onOpenChat, onLogout, 
     const matchAge = age >= s.eligibility.minAge && age <= s.eligibility.maxAge;
     const matchIncome = income <= s.eligibility.maxIncome;
     const matchCategory = searchParams.category ? s.category === searchParams.category : true;
-    return matchAge && matchIncome && matchCategory;
+    
+    // Caste Filtering Logic
+    const userCaste = searchParams.caste || '';
+    let matchCaste = true;
+    if (userCaste) {
+      const text = (s.title + " " + s.description).toLowerCase();
+      const isSCSTScheme = text.includes(' sc ') || text.includes(' st ') || text.includes('scheduled caste') || text.includes('tribal') || text.includes('dalit');
+      const isMinorityScheme = text.includes('minority') || text.includes('obc') || text.includes('backward class');
+      
+      if (userCaste === 'General') {
+        if (isSCSTScheme || isMinorityScheme) matchCaste = false;
+      } else if (userCaste === 'OBC') {
+        if (isSCSTScheme) matchCaste = false;
+      }
+    }
+    
+    return matchAge && matchIncome && matchCategory && matchCaste;
   });
 
   return (
@@ -705,13 +766,10 @@ const SearchResultsView = ({ searchParams, onViewDetails, onOpenChat, onLogout, 
           <nav className="nav-links">
             <a onClick={onBack} style={{ cursor: 'pointer' }}>Home</a>
             <a href="#schemes" className="active">Results</a>
-            <a onClick={onLogout} style={{ cursor: 'pointer', color: '#dc2626' }}>Logout</a>
           </nav>
           
           <div className="header-actions">
-            <button className="btn btn-primary" onClick={onOpenChat}>
-              <MessageSquare size={18}/> Ask AI Assistant
-            </button>
+            <button className="btn btn-outline" onClick={onLogout} style={{ color: '#dc2626', borderColor: '#fca5a5' }}>Logout</button>
           </div>
         </div>
       </header>
@@ -781,22 +839,22 @@ const SearchResultsView = ({ searchParams, onViewDetails, onOpenChat, onLogout, 
 // MAIN APP ROUTER
 // ==========================================
 export default function App() {
-  const [currentView, setCurrentView] = useState('auth'); // 'auth', 'home', 'details', 'chat', 'search'
+  const [currentView, setCurrentView] = useState('home'); // default to home
   const [userProfile, setUserProfile] = useState(null);
   const [selectedScheme, setSelectedScheme] = useState(null);
   const [searchParams, setSearchParams] = useState(null);
 
   React.useEffect(() => {
     // Check local storage for existing session
-    const savedProfile = localStorage.getItem('saarthiProfile');
-    if (savedProfile) {
-      setUserProfile(JSON.parse(savedProfile));
-      setCurrentView('home');
+    const activeSession = localStorage.getItem('saarthiSession');
+    if (activeSession) {
+      setUserProfile(JSON.parse(activeSession));
     }
   }, []);
 
   const handleAuthComplete = (profile) => {
     setUserProfile(profile);
+    localStorage.setItem('saarthiSession', JSON.stringify(profile));
     setCurrentView('home');
   };
 
@@ -806,18 +864,28 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('saarthiProfile');
+    localStorage.removeItem('saarthiSession');
     setUserProfile(null);
-    setCurrentView('auth');
+    setCurrentView('home');
   };
 
   return (
     <div style={{ scrollBehavior: 'smooth' }}>
       {currentView === 'auth' && <AuthView onComplete={handleAuthComplete} />}
-      {currentView === 'home' && <HomeView userProfile={userProfile} onViewDetails={handleViewDetails} onOpenChat={() => setCurrentView('chat')} onLogout={handleLogout} onSearch={(params) => { setSearchParams(params); setCurrentView('search'); }} />}
+      {currentView === 'home' && <HomeView userProfile={userProfile} onViewDetails={handleViewDetails} onOpenChat={() => setCurrentView('chat')} onLogout={handleLogout} onLogin={() => setCurrentView('auth')} onSearch={(params) => { setSearchParams(params); setCurrentView('search'); }} />}
       {currentView === 'search' && <SearchResultsView searchParams={searchParams} onViewDetails={handleViewDetails} onOpenChat={() => setCurrentView('chat')} onLogout={handleLogout} onBack={() => setCurrentView('home')} />}
       {currentView === 'details' && <SchemeDetailsView scheme={selectedScheme} onBack={() => setCurrentView(searchParams ? 'search' : 'home')} />}
       {currentView === 'chat' && <ChatbotView onBack={() => setCurrentView('home')} />}
+
+      {currentView !== 'chat' && currentView !== 'auth' && (
+        <button 
+          className="floating-chat-btn" 
+          onClick={() => setCurrentView('chat')}
+          title="Ask AI Assistant"
+        >
+          <MessageSquare size={28} />
+        </button>
+      )}
     </div>
   );
 }
