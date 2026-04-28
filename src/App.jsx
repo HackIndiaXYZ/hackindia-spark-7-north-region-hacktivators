@@ -5,6 +5,27 @@ import {
 } from 'lucide-react';
 import { schemesData } from './data/SchemesData';
 
+const INDIAN_STATES = [
+  "Puducherry", "West Bengal", "Haryana", "Himachal Pradesh", "Punjab"
+];
+
+const MOCK_OFFICES = [
+  { name: "District Industries Centre (DIC)", address: "Thattanchavady, Puducherry - 605009", lat: 11.9515, lng: 79.8011, state: "Puducherry" },
+  { name: "Haryana Seva Kendra", address: "Sector 17, Chandigarh, Haryana", lat: 30.7333, lng: 76.7794, state: "Haryana" },
+  { name: "Himachal Govt Office", address: "Mall Road, Shimla, HP", lat: 31.1048, lng: 77.1734, state: "Himachal Pradesh" },
+  { name: "Punjab State Seva Portal Office", address: "Mohali, Punjab", lat: 30.7046, lng: 76.7179, state: "Punjab" },
+  { name: "WB MSME Facilitation Centre", address: "Kolkata, West Bengal", lat: 22.5726, lng: 88.3639, state: "West Bengal" }
+];
+
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; 
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return (R * c).toFixed(1);
+}
+
 // ==========================================
 // VIEW 1: AUTH (Login / Signup)
 // ==========================================
@@ -111,8 +132,7 @@ const AuthView = ({ onComplete }) => {
                   <label>Your State</label>
                   <select className="auth-input" required value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})}>
                     <option value="">Select State</option>
-                    <option value="Delhi">Delhi</option>
-                    <option value="Maharashtra">Maharashtra</option>
+                    {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
@@ -201,6 +221,11 @@ const HomeView = ({ userProfile, onViewDetails, onOpenChat, onLogout, onLogin, o
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+    if (!userProfile) {
+      alert("Please Log In or Sign Up first to check eligible schemes!");
+      onLogin();
+      return;
+    }
     onSearch(formData);
   };
 
@@ -227,8 +252,24 @@ const HomeView = ({ userProfile, onViewDetails, onOpenChat, onLogout, onLogin, o
         if (isSCSTScheme) matchCaste = false;
       }
     }
+
+    // State Filtering Logic
+    const userState = userProfile.state || '';
+    let matchState = true;
+    if (userState) {
+       const text = (s.title + " " + s.description + " " + (s.simpleExplanation || "")).toLowerCase();
+       const mentionsSelectedState = text.includes(userState.toLowerCase());
+       const isCentral = text.includes('central') || text.includes('national') || text.includes('all india') || text.includes('aicte') || text.includes('ministry of');
+       
+       // Heuristic: If it mentions OTHER states but NOT the selected one, it's likely a state-specific scheme for elsewhere.
+       const mentionsOtherStates = INDIAN_STATES.some(os => os !== userState && text.includes(os.toLowerCase()));
+
+       if (mentionsOtherStates && !mentionsSelectedState && !isCentral) {
+         matchState = false;
+       }
+    }
     
-    return matchAge && matchIncome && matchCategory && matchCaste;
+    return matchAge && matchIncome && matchCategory && matchCaste && matchState;
   });
 
   const displaySchemes = filteredSchemes.slice(0, 6);
@@ -307,7 +348,13 @@ const HomeView = ({ userProfile, onViewDetails, onOpenChat, onLogout, onLogin, o
               <input type="number" required placeholder="Age" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} style={{width: '70px'}} />
             </div>
             <div className="input-box">
-              <input type="number" required placeholder="Income" value={formData.income} onChange={e => setFormData({...formData, income: e.target.value})} style={{width: '100px'}} />
+              <input type="number" required placeholder="Income" value={formData.income} onChange={e => setFormData({...formData, income: e.target.value})} style={{width: '90px'}} />
+            </div>
+            <div className="input-box">
+              <select required value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} style={{width: '120px'}}>
+                <option value="" disabled>State</option>
+                {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
             <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
               Find My Schemes →
@@ -375,7 +422,14 @@ const HomeView = ({ userProfile, onViewDetails, onOpenChat, onLogout, onLogin, o
                       <div className="benefit-label">Benefit</div>
                       <div className="benefit-amount">{scheme.benefit}</div>
                     </div>
-                    <button className="btn btn-primary" onClick={() => onViewDetails(scheme)}>
+                    <button className="btn btn-primary" onClick={() => {
+                      if (!userProfile) {
+                        alert("Please Log In to view full scheme details!");
+                        onLogin();
+                      } else {
+                        onViewDetails(scheme);
+                      }
+                    }}>
                       View Details →
                     </button>
                   </div>
@@ -423,7 +477,14 @@ const HomeView = ({ userProfile, onViewDetails, onOpenChat, onLogout, onLogin, o
               <p>Get instant answers about schemes, eligibility, documents and more.</p>
             </div>
           </div>
-          <button className="btn btn-primary btn-large" onClick={onOpenChat}>
+          <button className="btn btn-primary btn-large" onClick={() => {
+            if (!userProfile) {
+              alert("Please Log In to chat with Saarthi AI!");
+              onLogin();
+            } else {
+              onOpenChat();
+            }
+          }}>
             <MessageSquare size={20} /> Chat with AI Assistant →
           </button>
         </div>
@@ -441,7 +502,7 @@ const HomeView = ({ userProfile, onViewDetails, onOpenChat, onLogout, onLogin, o
 // ==========================================
 // VIEW 3: SCHEME DETAILS (Article Card + AI Modes)
 // ==========================================
-const SchemeDetailsView = ({ scheme, onBack }) => {
+const SchemeDetailsView = ({ scheme, onBack, onOpenChatWithContext }) => {
   const [aiExplanation, setAiExplanation] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [language, setLanguage] = useState('en');
@@ -560,6 +621,42 @@ const SchemeDetailsView = ({ scheme, onBack }) => {
             <div className="details-meta-item"><Clock size={16}/> Apply Online</div>
             <div className="details-meta-item"><MapPin size={16}/> Nearest Office</div>
           </div>
+
+          <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+            <p style={{ color: '#475569', marginBottom: '1.25rem', fontWeight: 600, fontSize: '1rem' }}>Ready to apply? Choose how you want to proceed:</p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              {/* Online: Direct link to official portal */}
+              <a
+                href={`https://www.myscheme.gov.in/schemes/${scheme.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+                style={{ background: '#2563eb', display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}
+              >
+                <span>🌐</span> Apply Online
+              </a>
+
+              {/* Offline: Open Google Maps searching for nearby govt offices */}
+              <a
+                href={(() => {
+                  const savedProfile = localStorage.getItem('saarthiAccount');
+                  const state = savedProfile ? JSON.parse(savedProfile).state : 'India';
+                  const office = MOCK_OFFICES.find(o => o.state === state) || MOCK_OFFICES[0];
+                  // Search for all government offices near the nearest known office location
+                  return `https://www.google.com/maps/search/government+office+${encodeURIComponent(state)}/@${office.lat},${office.lng},12z`;
+                })()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+                style={{ background: '#059669', display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}
+              >
+                <span>📍</span> Find Nearest Office (Maps)
+              </a>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '1rem' }}>
+              * Online: Opens the official government portal directly. Offline: Shows nearest offices on Google Maps.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -567,17 +664,35 @@ const SchemeDetailsView = ({ scheme, onBack }) => {
 };
 
 // ==========================================
-// VIEW 4: CHATBOT (Base44 Gradient)
+// VIEW 4: CHATBOT
 // ==========================================
-// ==========================================
-// VIEW 4: CHATBOT (Base44 Gradient)
-// ==========================================
-const ChatbotView = ({ onBack }) => {
+const ChatbotView = ({ onBack, initialContext, scheme }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [chatStarted, setChatStarted] = useState(false);
   const messagesEndRef = React.useRef(null);
+
+  // Auto-respond based on context when opened from scheme details
+  React.useEffect(() => {
+    if (initialContext && scheme) {
+      setChatStarted(true);
+      setIsTyping(true);
+      setTimeout(() => {
+        let botMsg = '';
+        if (initialContext === 'online') {
+          botMsg = `Great! To apply online for "${scheme.title}", visit the official portal below:\n\n🔗 https://www.myscheme.gov.in/schemes/${scheme.id}\n\nSteps:\n1. Open the above link\n2. Click on 'Apply Now'\n3. Login with Aadhaar / DigiLocker\n4. Fill the application form\n5. Upload required documents\n6. Submit and note your application number\n\nDo you need help with any specific step?`;
+        } else {
+          const savedProfile = localStorage.getItem('saarthiAccount');
+          const userState = savedProfile ? JSON.parse(savedProfile).state : 'Puducherry';
+          const office = MOCK_OFFICES.find(o => o.state === userState) || MOCK_OFFICES[0];
+          botMsg = `Sure! To apply offline for "${scheme.title}", visit your nearest government office:\n\n🏛️ ${office.name}\n📍 ${office.address}\n\n🗺️ Open in Maps: https://www.google.com/maps/search/?api=1&query=${office.lat},${office.lng}\n\nCarry these documents:\n• Aadhaar Card\n• Income Certificate\n• Caste Certificate (if applicable)\n• Passport Photo\n\nWould you like help with anything else?`;
+        }
+        setMessages([{ text: botMsg, isBot: true }]);
+        setIsTyping(false);
+      }, 1200);
+    }
+  }, [initialContext, scheme]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -724,7 +839,47 @@ const ChatbotView = ({ onBack }) => {
 // ==========================================
 // VIEW 2.5: SEARCH RESULTS
 // ==========================================
-const SearchResultsView = ({ searchParams, onViewDetails, onOpenChat, onLogout, onBack }) => {
+import { getApplyLink } from './services/linkResolver';
+
+const DynamicApplyButton = ({ scheme }) => {
+  const [loading, setLoading] = useState(false);
+  const [link, setLink] = useState(null);
+
+  const handleFetch = async () => {
+    setLoading(true);
+    try {
+      const url = await getApplyLink(scheme.title, scheme.id);
+      setLink(url);
+      window.open(url, '_blank');
+    } catch (err) {
+      alert("Could not fetch official link. Please search manually.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (link) {
+    return (
+      <a href={link} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ textDecoration: 'none' }}>
+        Apply Online →
+      </a>
+    );
+  }
+
+  return (
+    <button className="btn btn-outline" onClick={handleFetch} disabled={loading} style={{ minWidth: '130px' }}>
+      {loading ? (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="spinner-small"></div> Fetching AI Link...
+        </span>
+      ) : (
+        "Apply Online →"
+      )}
+    </button>
+  );
+};
+
+const SearchResultsView = ({ searchParams, onViewDetails, onOpenChat, onLogout, onBack, userCoords }) => {
   const age = parseInt(searchParams.age) || 0;
   const income = parseInt(searchParams.income) || 0;
   
@@ -747,9 +902,28 @@ const SearchResultsView = ({ searchParams, onViewDetails, onOpenChat, onLogout, 
         if (isSCSTScheme) matchCaste = false;
       }
     }
+
+    // State Filtering Logic
+    const userState = searchParams.state || '';
+    let matchState = true;
+    if (userState) {
+       const text = (s.title + " " + s.description + " " + (s.simpleExplanation || "")).toLowerCase();
+       const mentionsSelectedState = text.includes(userState.toLowerCase());
+       const isCentral = text.includes('central') || text.includes('national') || text.includes('all india') || text.includes('aicte') || text.includes('ministry of');
+       
+       const mentionsOtherStates = INDIAN_STATES.some(os => os !== userState && text.includes(os.toLowerCase()));
+
+       if (mentionsOtherStates && !mentionsSelectedState && !isCentral) {
+         matchState = false;
+       }
+    }
     
-    return matchAge && matchIncome && matchCategory && matchCaste;
+    return matchAge && matchIncome && matchCategory && matchCaste && matchState;
   });
+
+  // Find nearest office for the selected state
+  const nearestOffice = MOCK_OFFICES.find(o => o.state === searchParams.state) || MOCK_OFFICES[0];
+  const distance = userCoords ? getDistance(userCoords.lat, userCoords.lng, nearestOffice.lat, nearestOffice.lng) : null;
 
   return (
     <div className="home-view">
@@ -774,49 +948,72 @@ const SearchResultsView = ({ searchParams, onViewDetails, onOpenChat, onLogout, 
         </div>
       </header>
 
-      <section className="section" style={{ background: 'var(--glass-bg)', minHeight: '80vh', paddingTop: '8rem' }}>
+      <section className="section" style={{ background: '#f8fafc', minHeight: '80vh', paddingTop: '8rem' }}>
         <div className="container">
           <div className="schemes-header">
             <div>
               <a onClick={onBack} style={{ color: '#64748b', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', textDecoration: 'none', fontWeight: 600 }}>
                 <ChevronLeft size={16}/> Back to Search
               </a>
-              <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Top Recommendations For You</h2>
-              <p style={{ color: '#64748b', marginTop: '0.5rem' }}>Found {filteredSchemes.length} schemes for Category: {searchParams.category}, Age: {searchParams.age}, Income: ₹{searchParams.income}</p>
+              <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Matching Schemes & Support</h2>
+              <p style={{ color: '#64748b', marginTop: '0.5rem' }}>We found {filteredSchemes.length} schemes you are eligible for in {searchParams.state}.</p>
             </div>
           </div>
           
-          <div className="schemes-grid">
-            {filteredSchemes.length > 0 ? filteredSchemes.map(scheme => {
-              const tagClass = scheme.category === 'student' ? 'tag-student' : scheme.category === 'farmer' ? 'tag-farmer' : 'tag-women';
-              const iconClass = scheme.category === 'student' ? 'icon-green' : scheme.category === 'farmer' ? 'icon-blue' : 'icon-purple';
-
-              return (
-                <div key={scheme.id} className="scheme-card">
+          <div className="schemes-list-full">
+            {filteredSchemes.length > 0 ? filteredSchemes.map(scheme => (
+              <div key={scheme.id} className="scheme-office-row">
+                <div className="scheme-section">
                   <div className="card-top">
-                    <div className={`card-icon ${iconClass}`}><scheme.icon size={24} /></div>
-                    <div className={`tag ${tagClass}`}>{scheme.target}</div>
+                    <div className="tag tag-student">Recommended For You</div>
                   </div>
                   <h3 className="card-title">{scheme.title}</h3>
-                  <p className="card-desc">{scheme.description}</p>
+                  <p className="card-desc" style={{ marginBottom: '1rem' }}>{scheme.description}</p>
                   
-                  <div style={{ background: '#fef2f2', padding: '0.75rem', borderRadius: '8px', fontSize: '0.85rem', color: '#dc2626', marginBottom: '1.5rem', borderLeft: '3px solid #dc2626' }}>
-                    ⭐ <strong>High Match:</strong> Based on your input
+                  <div className="benefit-pill">
+                    <strong>Benefit:</strong> {scheme.benefit}
                   </div>
-
-                  <div className="card-bottom">
-                    <div>
-                      <div className="benefit-label">Benefit</div>
-                      <div className="benefit-amount">{scheme.benefit}</div>
-                    </div>
+                  
+                  <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                     <button className="btn btn-primary" onClick={() => onViewDetails(scheme)}>
-                      View Details →
+                      View Full Details
                     </button>
+                    <DynamicApplyButton scheme={scheme} />
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '1rem' }}>
+                    * AI Assistant dynamically fetches the latest official portal link for your convenience.
+                  </p>
+                </div>
+
+                <div className="office-section">
+                  <div className="office-header">
+                    <MapPin size={20} color="#dc2626" />
+                    <h4>Apply Offline (Nearest Office)</h4>
+                  </div>
+                  <div className="office-card">
+                    <h5 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>{nearestOffice.name}</h5>
+                    <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '1rem' }}>{nearestOffice.address}</p>
+                    <div className="office-meta">
+                      {distance ? (
+                        <span className="distance-badge" style={{ background: '#fef2f2', padding: '0.4rem 0.8rem', borderRadius: '20px', fontSize: '0.85rem', color: '#dc2626', fontWeight: 600 }}>📍 {distance} km away</span>
+                      ) : (
+                        <span className="location-note" style={{ color: '#64748b', fontSize: '0.85rem' }}>GPS not enabled for distance</span>
+                      )}
+                    </div>
+                    <a 
+                      href={`https://www.google.com/maps/search/?api=1&query=${nearestOffice.lat},${nearestOffice.lng}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="btn btn-outline"
+                      style={{ display: 'block', width: '100%', marginTop: '1.5rem', textAlign: 'center', textDecoration: 'none' }}
+                    >
+                      Open in Maps
+                    </a>
                   </div>
                 </div>
-              );
-            }) : (
-              <div style={{ textAlign: 'center', padding: '3rem', width: '100%', gridColumn: '1 / -1', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              </div>
+            )) : (
+              <div style={{ textAlign: 'center', padding: '3rem', width: '100%', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                 <Search size={48} color="#94a3b8" style={{ margin: '0 auto 1rem auto' }} />
                 <h3>No schemes found</h3>
                 <p style={{ color: '#64748b' }}>Try adjusting your search criteria to find more schemes.</p>
@@ -843,8 +1040,18 @@ export default function App() {
   const [userProfile, setUserProfile] = useState(null);
   const [selectedScheme, setSelectedScheme] = useState(null);
   const [searchParams, setSearchParams] = useState(null);
+  const [userCoords, setUserCoords] = useState(null);
+  const [chatContext, setChatContext] = useState(null); // 'online' or 'offline'
 
   React.useEffect(() => {
+    // Get user geolocation
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => console.log("Geolocation denied")
+      );
+    }
+
     // Check local storage for existing session
     const activeSession = localStorage.getItem('saarthiSession');
     if (activeSession) {
@@ -873,14 +1080,21 @@ export default function App() {
     <div style={{ scrollBehavior: 'smooth' }}>
       {currentView === 'auth' && <AuthView onComplete={handleAuthComplete} />}
       {currentView === 'home' && <HomeView userProfile={userProfile} onViewDetails={handleViewDetails} onOpenChat={() => setCurrentView('chat')} onLogout={handleLogout} onLogin={() => setCurrentView('auth')} onSearch={(params) => { setSearchParams(params); setCurrentView('search'); }} />}
-      {currentView === 'search' && <SearchResultsView searchParams={searchParams} onViewDetails={handleViewDetails} onOpenChat={() => setCurrentView('chat')} onLogout={handleLogout} onBack={() => setCurrentView('home')} />}
-      {currentView === 'details' && <SchemeDetailsView scheme={selectedScheme} onBack={() => setCurrentView(searchParams ? 'search' : 'home')} />}
-      {currentView === 'chat' && <ChatbotView onBack={() => setCurrentView('home')} />}
+      {currentView === 'search' && <SearchResultsView searchParams={searchParams} onViewDetails={handleViewDetails} onOpenChat={() => setCurrentView('chat')} onLogout={handleLogout} onBack={() => setCurrentView('home')} userCoords={userCoords} />}
+      {currentView === 'details' && <SchemeDetailsView scheme={selectedScheme} onBack={() => setCurrentView(searchParams ? 'search' : 'home')} onOpenChatWithContext={(ctx, s) => { setChatContext(ctx); if (s) setSelectedScheme(s); setCurrentView('chat'); }} />}
+      {currentView === 'chat' && <ChatbotView onBack={() => { setCurrentView('home'); setChatContext(null); }} initialContext={chatContext} scheme={selectedScheme} />}
 
       {currentView !== 'chat' && currentView !== 'auth' && (
         <button 
           className="floating-chat-btn" 
-          onClick={() => setCurrentView('chat')}
+          onClick={() => {
+            if (!userProfile) {
+              alert("Please Log In or Sign Up to chat with Saarthi AI!");
+              setCurrentView('auth');
+            } else {
+              setCurrentView('chat');
+            }
+          }}
           title="Ask AI Assistant"
         >
           <MessageSquare size={28} />
